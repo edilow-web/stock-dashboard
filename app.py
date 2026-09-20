@@ -7,7 +7,7 @@ st.set_page_config(page_title="내 투자 대시보드", layout="wide")
 st.title("📈 내 투자 포트폴리오 대시보드")
 
 
-# 1. 실시간 원/달러 환율 가져오기 함수
+# 1. 실시간 원/달러 환율 가져오기 함수 (최상단 강조용)
 @st.cache_data(ttl=3600)
 def get_exchange_rate():
   try:
@@ -15,13 +15,16 @@ def get_exchange_rate():
     rate = exc.history(period="1d")["Close"].iloc[-1]
     return rate
   except:
-    return 1350.0  # 만약 에러 시 기본값 적용
+    return 1350.0  # 에러 발생 시 기본 환율 적용
 
 
 exchange_rate = get_exchange_rate()
 
-# 환율 안내 문구 출력
-st.info(f"💱 현재 적용된 실시간 원/달러 환율: **1 USD = {exchange_rate:,.2f} 원**")
+# 💡 화면 최상단에 현재 환율 정보를 눈에 띄게 박스 형태로 배치
+st.metric(
+    label="💱 실시간 기준 원/달러 환율 (USDKRW)", value=f"{exchange_rate:,.2f} 원"
+)
+st.divider()
 
 # 2. 포트폴리오 CSV 파일 불러오기
 try:
