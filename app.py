@@ -1,3 +1,4 @@
+from datetime import datetime
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -7,22 +8,27 @@ st.set_page_config(page_title="내 투자 대시보드", layout="wide")
 st.title("📈 내 투자 포트폴리오 대시보드")
 
 
-# 1. 실시간 원/달러 환율 가져오기 함수 (최상단 강조용)
+# 1. 실시간 원/달러 환율 및 기준 시간 가져오기 함수
 @st.cache_data(ttl=3600)
-def get_exchange_rate():
+def get_exchange_rate_and_time():
   try:
     exc = yf.Ticker("USDKRW=X")
-    rate = exc.history(period="1d")["Close"].iloc[-1]
-    return rate
+    hist = exc.history(period="1d")
+    rate = hist["Close"].iloc[-1]
+    # 데이터의 마지막 갱신 시간 가져오기 (한국 시간대 또는 거래소 기준)
+    last_time = hist.index[-1].strftime("%Y년 %m월 %d일 %H시 %M분")
+    return rate, last_time
   except:
-    return 1350.0  # 에러 발생 시 기본 환율 적용
+    now_str = datetime.now().strftime("%Y년 %m월 %d일 %H시 %M분")
+    return 1350.0, now_str
 
 
-exchange_rate = get_exchange_rate()
+exchange_rate, rate_time = get_exchange_rate_and_time()
 
-# 💡 화면 최상단에 현재 환율 정보를 눈에 띄게 박스 형태로 배치
+# 💡 화면 최상단에 환율 정보와 정확한 기준 일시를 함께 표시
 st.metric(
-    label="💱 실시간 기준 원/달러 환율 (USDKRW)", value=f"{exchange_rate:,.2f} 원"
+    label=f"💱 실시간 기준 원/달러 환율 (기준 시점: {rate_time})",
+    value=f"{exchange_rate:,.2f} 원",
 )
 st.divider()
 
