@@ -6,7 +6,24 @@ import yfinance as yf
 st.set_page_config(page_title="내 투자 대시보드", layout="wide")
 st.title("📈 내 투자 포트폴리오 대시보드")
 
-# 1. 포트폴리오 CSV 파일 불러오기
+
+# 1. 실시간 원/달러 환율 가져오기 함수
+@st.cache_data(ttl=3600)
+def get_exchange_rate():
+  try:
+    exc = yf.Ticker("USDKRW=X")
+    rate = exc.history(period="1d")["Close"].iloc[-1]
+    return rate
+  except:
+    return 1350.0  # 만약 에러 시 기본값 적용
+
+
+exchange_rate = get_exchange_rate()
+
+# 환율 안내 문구 출력
+st.info(f"💱 현재 적용된 실시간 원/달러 환율: **1 USD = {exchange_rate:,.2f} 원**")
+
+# 2. 포트폴리오 CSV 파일 불러오기
 try:
   df = pd.read_csv("portfolio.csv")
 except FileNotFoundError:
@@ -22,7 +39,7 @@ if "Buy_Price" in df.columns:
       .astype(float)
   )
 
-# 2. yfinance를 이용해 현재가 조회 및 수익률 계산
+# 3. yfinance를 이용해 현재가 조회 및 수익률 계산
 current_prices = []
 for ticker in df["Ticker"]:
   try:
@@ -41,7 +58,7 @@ df["Evaluation"] = df["Current_Price"] * df["Quantity"]
 df["Profit_Loss"] = df["Evaluation"] - df["Investment"]
 df["Return_Rate"] = (df["Profit_Loss"] / df["Investment"]) * 100
 
-# 3. 전체 요약 지표 (상단 카드 - 달러($) 기준)
+# 4. 전체 요약 지표 (상단 카드 - 달러 및 원화 병행 표시)
 total_investment = df["Investment"].sum()
 total_evaluation = df["Evaluation"].sum()
 total_profit = total_evaluation - total_investment
@@ -49,38 +66,80 @@ total_return = (
     (total_profit / total_investment) * 100 if total_investment > 0 else 0
 )
 
+# 원화 환산 금액 계산
+total_investment_krw = total_investment * exchange_rate
+total_evaluation_krw = total_evaluation * exchange_rate
+total_profit_krw = total_profit * exchange_rate
+
 col1, col2, col3 = st.columns(3)
-col1.metric("총 투자 원금", f"${total_investment:,.2f}")
-col2.metric("총 평가 금액", f"${total_evaluation:,.2f}")
-col3.metric("총 수익률", f"${total_return:.2f}%", delta=f"${total_profit:,.2f}")
+col1.metric(
+    "총 투자 원금",
+    f"${total_investment:,.2f}",
+    f"{total_investment_krw:,.0f} 원",
+)
+col2.metric(
+    "총 평가 금액",
+    f"${total_evaluation:,.2f}",
+    f"{total_evaluation_krw:,.0f} 원",
+)
+col3.metric(
+    "총 수익률",
+    f"${total_return:.2f}%",
+    delta=(
+        f"${total_profit:,.2f} ({total_profit_krw:+,.0f} 원)"
+        if total_profit != 0
+        else "$0.00"
+    ),
+)
 
 st.divider()
 
-# 4. 종목별 상세 테이블 (컬럼명 한글화 및 달러 포맷팅 적용)
+# 5. 종목별 상세 테이블 (원화 환산 가격 추가)
 st.subheader("📊 종목별 보유 현황")
 
+# 원화 환산 컬럼 추가
+df["Buy_Price_KRW"] = df["Buy_Price"] * exchange_rate
+df["Current_Price_KRW"] = df["Current_Price"] * exchange_rate
+
 df_display = df[
-    ["Name", "Ticker", "Buy_Price", "Current_Price", "Quantity", "Return_Rate"]
+    [
+        "Name",
+        "Ticker",
+        "Buy_Price",
+        "Buy_Price_KRW",
+        "Current_Price",
+        "Current_Price_KRW",
+        "Quantity",
+        "Return_Rate",
+    ]
 ].copy()
 df_display.columns = [
     "종목명",
     "티커",
-    "매수가격 ($)",
-    "현재가격 ($)",
+    "매수가 ($)",
+    "매수가 (원)",
+    "현재가 ($)",
+    "현재가 (원)",
     "보유수량",
     "수익률 (%)",
 ]
 
-# 가격 및 수익률 포맷팅 적용
-df_display["매수가격 ($)"] = df_display["매수가격 ($)"].map("${:,.2f}".format)
-df_display["현재가격 ($)"] = df_display["현재가격 ($)"].map("${:,.2f}".format)
+# 포맷팅 적용
+df_display["매수가 ($)"] = df_display["매수가 ($)"].map("${:,.2f}".format)
+df_display["매수가 (원)"] = df_display["매수가 (원)"].map(
+    "{:,.0f} 원".format
+)
+df_display["현재가 ($)"] = df_display["현재가 ($)"].map("${:,.2f}".format)
+df_display["현재가 (원)"] = df_display["현재가 (원)"].map(
+    "{:,.0f} 원".format
+)
 df_display["수익률 (%)"] = df_display["수익률 (%)"].map("{:+.2f}%".format)
 
 st.dataframe(df_display, use_container_width=True)
 
 st.divider()
 
-# 5. 종목별 주가 차트
+# 6. 종목별 주가 차트
 st.subheader("📉 종목별 주가 차트")
 selected_ticker = st.selectbox(
     "차트를 볼 종목을 선택하세요", df["Ticker"].tolist()
