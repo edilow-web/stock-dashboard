@@ -15,7 +15,6 @@ def get_exchange_rate_and_time():
     exc = yf.Ticker("USDKRW=X")
     hist = exc.history(period="1d")
     rate = hist["Close"].iloc[-1]
-    # 데이터의 마지막 갱신 시간 가져오기 (한국 시간대 또는 거래소 기준)
     last_time = hist.index[-1].strftime("%Y년 %m월 %d일 %H시 %M분")
     return rate, last_time
   except:
@@ -25,7 +24,7 @@ def get_exchange_rate_and_time():
 
 exchange_rate, rate_time = get_exchange_rate_and_time()
 
-# 💡 화면 최상단에 환율 정보와 정확한 기준 일시를 함께 표시
+# 💡 화면 최상단에 환율 정보와 기준 일시 표시
 st.metric(
     label=f"💱 실시간 기준 원/달러 환율 (기준 시점: {rate_time})",
     value=f"{exchange_rate:,.2f} 원",
@@ -48,7 +47,7 @@ if "Buy_Price" in df.columns:
       .astype(float)
   )
 
-# 3. yfinance를 이용해 현재가 조회 및 수익률 계산
+# 3. yfinance를 이용해 현재가 조회 및 계산
 current_prices = []
 for ticker in df["Ticker"]:
   try:
@@ -57,9 +56,9 @@ for ticker in df["Ticker"]:
     if not todays_data.empty:
       current_prices.append(todays_data["Close"].iloc[-1])
     else:
-      current_prices.append(0)
+      current_prices.append(0.0)
   except:
-    current_prices.append(0)
+    current_prices.append(0.0)
 
 df["Current_Price"] = current_prices
 df["Investment"] = df["Buy_Price"] * df["Quantity"]
@@ -67,7 +66,7 @@ df["Evaluation"] = df["Current_Price"] * df["Quantity"]
 df["Profit_Loss"] = df["Evaluation"] - df["Investment"]
 df["Return_Rate"] = (df["Profit_Loss"] / df["Investment"]) * 100
 
-# 4. 전체 요약 지표 (상단 카드 - 달러 및 원화 병행 표시)
+# 4. 전체 요약 지표 (상단 카드)
 total_investment = df["Investment"].sum()
 total_evaluation = df["Evaluation"].sum()
 total_profit = total_evaluation - total_investment
@@ -75,7 +74,6 @@ total_return = (
     (total_profit / total_investment) * 100 if total_investment > 0 else 0
 )
 
-# 원화 환산 금액 계산
 total_investment_krw = total_investment * exchange_rate
 total_evaluation_krw = total_evaluation * exchange_rate
 total_profit_krw = total_profit * exchange_rate
@@ -103,46 +101,36 @@ col3.metric(
 
 st.divider()
 
-# 5. 종목별 상세 테이블 (원화 환산 가격 추가)
+# 5. 종목별 상세 테이블 구성 (달러/원 한 줄 병기 및 보유수량 바로 옆에 총 평가금액 배치)
 st.subheader("📊 종목별 보유 현황")
 
-# 원화 환산 컬럼 추가
-df["Buy_Price_KRW"] = df["Buy_Price"] * exchange_rate
-df["Current_Price_KRW"] = df["Current_Price"] * exchange_rate
+display_data = []
+for idx, row in df.iterrows():
+  buy_usd = row["Buy_Price"]
+  buy_krw = buy_usd * exchange_rate
+  buy_str = f"${buy_usd:,.2f} ({buy_krw:,.0f} 원)"
 
-df_display = df[
-    [
-        "Name",
-        "Ticker",
-        "Buy_Price",
-        "Buy_Price_KRW",
-        "Current_Price",
-        "Current_Price_KRW",
-        "Quantity",
-        "Return_Rate",
-    ]
-].copy()
-df_display.columns = [
-    "종목명",
-    "티커",
-    "매수가 ($)",
-    "매수가 (원)",
-    "현재가 ($)",
-    "현재가 (원)",
-    "보유수량",
-    "수익률 (%)",
-]
+  cur_usd = row["Current_Price"]
+  cur_krw = cur_usd * exchange_rate
+  cur_str = f"${cur_usd:,.2f} ({cur_krw:,.0f} 원)"
 
-# 포맷팅 적용
-df_display["매수가 ($)"] = df_display["매수가 ($)"].map("${:,.2f}".format)
-df_display["매수가 (원)"] = df_display["매수가 (원)"].map(
-    "{:,.0f} 원".format
-)
-df_display["현재가 ($)"] = df_display["현재가 ($)"].map("${:,.2f}".format)
-df_display["현재가 (원)"] = df_display["현재가 (원)"].map(
-    "{:,.0f} 원".format
-)
-df_display["수익률 (%)"] = df_display["수익률 (%)"].map("{:+.2f}%".format)
+  eval_usd = row["Evaluation"]
+  eval_krw = eval_usd * exchange_rate
+  eval_str = f"${eval_usd:,.2f} ({eval_krw:,.0f} 원)"
+
+  ret_str = f"{row['Return_Rate']:+.2f}%"
+
+  display_data.append({
+      "종목명": row["Name"],
+      "티커": row["Ticker"],
+      "매수가": buy_str,
+      "현재가": cur_str,
+      "보유수량": row["Quantity"],
+      "총 평가금액": eval_str,
+      "수익률": ret_str,
+  })
+
+df_display = pd.DataFrame(display_data)
 
 st.dataframe(df_display, use_container_width=True)
 
