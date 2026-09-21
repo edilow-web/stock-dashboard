@@ -101,14 +101,13 @@ col3.metric(
 
 st.divider()
 
-# 5. 종목별 상세 테이블 구성 (달러 아래에 원화가 세로로 오도록 HTML 줄바꿈 적용)
+# 5. 종목별 상세 테이블 구성 (달러 아래에 원화 세로 병기)
 st.subheader("📊 종목별 보유 현황")
 
 display_data = []
 for idx, row in df.iterrows():
   buy_usd = row["Buy_Price"]
   buy_krw = buy_usd * exchange_rate
-  # HTML 태그(<br>)를 사용하여 달러 아래에 원화가 세로로 표시되도록 설정
   buy_str = f"$ {buy_usd:,.2f}<br>({buy_krw:,.0f} 원)"
 
   cur_usd = row["Current_Price"]
@@ -133,7 +132,6 @@ for idx, row in df.iterrows():
 
 df_display = pd.DataFrame(display_data)
 
-# Streamlit에서 HTML 태그(세로 줄바꿈)가 적용되도록 unsafe_allow_html=True 사용
 st.markdown(
     df_display.to_html(escape=False, index=False, classes="styled-table"),
     unsafe_allow_html=True,
@@ -141,7 +139,92 @@ st.markdown(
 
 st.divider()
 
-# 6. 종목별 주가 차트
+# 6. 종목별 월별 배당금 현황 표 추가
+st.subheader("💰 종목별 월별 배당금 현황 (최근 1년 기준)")
+
+dividend_data = []
+for idx, row in df.iterrows():
+  ticker_str = str(row["Ticker"]).strip()
+  qty = row["Quantity"]
+  try:
+    stock = yf.Ticker(ticker_str)
+    # 최근 배당 이력 가져오기
+    dividends = stock.dividends
+    if not dividends.empty:
+      # 최근 1년 데이터만 필터링
+      one_year_ago = pd.Timestamp.now(tz=dividends.index.tz) - pd.DateOffset(
+          years=1
+      )
+      recent_divs = dividends[dividends.index >= one_year_ago]
+
+      if not recent_divs.empty:
+        # 월별로 배당금 합산 (주당 배당금 * 보유수량)
+        monthly_divs = {i: 0.0 for i in range(1, 13)}
+        for date, val in recent_divs.items():
+          month = date.month
+          # 총 받은 배당금 = 주당 배당금 * 보유 수량
+          monthly_divs[month] += val * qty
+
+        div_row = {
+            "종목명": row["Name"],
+            "티커": ticker_str,
+        }
+        annual_total_usd = 0
+        for m in range(1, 13):
+          amt_usd = monthly_divs[m]
+          annual_total_usd += amt_usd
+          if amt_usd > 0:
+            amt_krw = amt_usd * exchange_rate
+            div_row[f"{m}월"] = f"${amt_usd:,.2f}<br>({amt_krw:,.0f} 원)"
+          else:
+            div_row[f"{m}월"] = "-"
+
+        annual_total_krw = annual_total_usd * exchange_rate
+        div_row["연간 총 배당금"] = (
+            f"${annual_total_usd:,.2f}<br>({annual_total_krw:,.0f} 원)"
+        )
+        dividend_data.append(div_row)
+      else:
+        dividend_data.append({
+            "종목명": row["Name"],
+            "티커": ticker_str,
+            "연간 총 배당금": "배당 이력 없음",
+        })
+    else:
+      dividend_data.append({
+          "종목명": row["Name"],
+          "티커": ticker_str,
+          "연간 총 배당금": "배당 없음",
+      })
+  except:
+    dividend_data.append({
+        "종목명": row["Name"],
+        "티커": ticker_str,
+        "연간 총 배당금": "조회 실패",
+    })
+
+df_div = pd.DataFrame(dividend_data)
+
+# 1월부터 12월까지 컬럼 순서 맞추기 (없는 월은 컬럼 추가)
+month_cols = [f"{m}월" for m in range(1, 13)]
+base_cols = ["종목명", "티커"]
+all_cols = base_cols + month_cols + ["연간 총 배당금"]
+
+for col in all_cols:
+  if col not in df_div.columns:
+    df_div[col] = "-"
+
+df_div = df_div[all_cols]
+
+# 배당금 테이블 출력 (HTML로 세로줄바꿈 적용)
+st.markdown(
+    df_div.to_html(escape=False, index=False, classes="styled-table"),
+    unsafe_allow_html=True,
+)
+
+st.divider()
+
+# 7. 종목별 주가 차트
 st.subheader("📉 종목별 주가 차트")
 selected_ticker = st.selectbox(
     "차트를 볼 종목을 선택하세요", df["Ticker"].tolist()
