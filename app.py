@@ -101,7 +101,7 @@ col3.metric(
 
 st.divider()
 
-# 5. 종목별 상세 테이블 구성 (종목명, 티커, 보유수량, 매수가, 매수금액, 현재가, 총 평가금액, 수익률 순)
+# 5. 종목별 상세 테이블 구성 (종목명, 티커, 보유수량, 매수가, 매수금액, 현재가, 총 평가금액, 수익금, 수익률 순)
 st.subheader("📊 종목별 보유 현황")
 
 display_data = []
@@ -122,6 +122,10 @@ for idx, row in df.iterrows():
   eval_krw = eval_usd * exchange_rate
   eval_str = f"$ {eval_usd:,.2f}<br>({eval_krw:,.0f} 원)"
 
+  profit_usd = row["Profit_Loss"]
+  profit_krw = profit_usd * exchange_rate
+  profit_str = f"$ {profit_usd:+,.2f}<br>({profit_krw:+,.0f} 원)"
+
   ret_str = f"{row['Return_Rate']:+.2f}%"
 
   display_data.append({
@@ -132,6 +136,7 @@ for idx, row in df.iterrows():
       "매수금액": inv_str,
       "현재가": cur_str,
       "총 평가금액": eval_str,
+      "수익금": profit_str,
       "수익률": ret_str,
   })
 
