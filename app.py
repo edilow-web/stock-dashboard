@@ -101,22 +101,23 @@ col3.metric(
 
 st.divider()
 
-# 5. 종목별 상세 테이블 구성 (달러/원 한 줄 병기 및 보유수량 바로 옆에 총 평가금액 배치)
+# 5. 종목별 상세 테이블 구성 (달러 아래에 원화가 세로로 오도록 HTML 줄바꿈 적용)
 st.subheader("📊 종목별 보유 현황")
 
 display_data = []
 for idx, row in df.iterrows():
   buy_usd = row["Buy_Price"]
   buy_krw = buy_usd * exchange_rate
-  buy_str = f"${buy_usd:,.2f} ({buy_krw:,.0f} 원)"
+  # HTML 태그(<br>)를 사용하여 달러 아래에 원화가 세로로 표시되도록 설정
+  buy_str = f"$ {buy_usd:,.2f}<br>({buy_krw:,.0f} 원)"
 
   cur_usd = row["Current_Price"]
   cur_krw = cur_usd * exchange_rate
-  cur_str = f"${cur_usd:,.2f} ({cur_krw:,.0f} 원)"
+  cur_str = f"$ {cur_usd:,.2f}<br>({cur_krw:,.0f} 원)"
 
   eval_usd = row["Evaluation"]
   eval_krw = eval_usd * exchange_rate
-  eval_str = f"${eval_usd:,.2f} ({eval_krw:,.0f} 원)"
+  eval_str = f"$ {eval_usd:,.2f}<br>({eval_krw:,.0f} 원)"
 
   ret_str = f"{row['Return_Rate']:+.2f}%"
 
@@ -132,7 +133,11 @@ for idx, row in df.iterrows():
 
 df_display = pd.DataFrame(display_data)
 
-st.dataframe(df_display, use_container_width=True)
+# Streamlit에서 HTML 태그(세로 줄바꿈)가 적용되도록 unsafe_allow_html=True 사용
+st.markdown(
+    df_display.to_html(escape=False, index=False, classes="styled-table"),
+    unsafe_allow_html=True,
+)
 
 st.divider()
 
