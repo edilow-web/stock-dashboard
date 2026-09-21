@@ -7,6 +7,17 @@ import yfinance as yf
 st.set_page_config(page_title="내 투자 대시보드", layout="wide")
 st.title("📈 내 투자 포트폴리오 대시보드")
 
+# 🎨 표 내부 텍스트 색상 및 스타일 지정을 위한 CSS 주입
+st.markdown(
+    """
+    <style>
+    .profit-pos { color: #d32f2f; font-weight: bold; }
+    .profit-neg { color: #1976d2; font-weight: bold; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 # 1. 실시간 원/달러 환율 및 기준 시간 가져오기 함수
 @st.cache_data(ttl=3600)
@@ -101,7 +112,7 @@ col3.metric(
 
 st.divider()
 
-# 5. 종목별 상세 테이블 구성 (종목명, 티커, 보유수량, 매수가, 매수금액, 현재가, 총 평가금액, 수익금, 수익률 순)
+# 5. 종목별 상세 테이블 구성 (수익금, 수익률 색상 적용)
 st.subheader("📊 종목별 보유 현황")
 
 display_data = []
@@ -124,9 +135,13 @@ for idx, row in df.iterrows():
 
   profit_usd = row["Profit_Loss"]
   profit_krw = profit_usd * exchange_rate
-  profit_str = f"$ {profit_usd:+,.2f}<br>({profit_krw:+,.0f} 원)"
+  ret_val = row["Return_Rate"]
 
-  ret_str = f"{row['Return_Rate']:+.2f}%"
+  # 플러스는 빨간색 클래스, 마이너스는 파란색 클래스 적용
+  css_class = "profit-pos" if profit_usd >= 0 else "profit-neg"
+
+  profit_str = f"""<span class="{css_class}">$ {profit_usd:+,.2f}<br>({profit_krw:+,.0f} 원)</span>"""
+  ret_str = f"""<span class="{css_class}">{ret_val:+.2f}%</span>"""
 
   display_data.append({
       "종목명": row["Name"],
