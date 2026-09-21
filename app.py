@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -139,88 +139,91 @@ st.markdown(
 
 st.divider()
 
-# 6. 종목별 월별 배당금 현황 표 추가
-st.subheader("💰 종목별 월별 배당금 현황 (최근 1년 기준)")
+# 6. 향후 1년간 월별 예상 배당금 현황 표 (배당이 있는 주식만 필터링)
+st.subheader("💰 향후 1년 월별 예상 배당금 현황 (배당 지급 종목 대상)")
 
 dividend_data = []
+now = pd.Timestamp.now(tz="UTC")  # 비교를 위한 현재 시점
+one_year_later = now + pd.DateOffset(years=1)
+
 for idx, row in df.iterrows():
   ticker_str = str(row["Ticker"]).strip()
   qty = row["Quantity"]
   try:
     stock = yf.Ticker(ticker_str)
-    # 최근 배당 이력 가져오기
     dividends = stock.dividends
-    if not dividends.empty:
-      # 최근 1년 데이터만 필터링
-      one_year_ago = pd.Timestamp.now(tz=dividends.index.tz) - pd.DateOffset(
-          years=1
-      )
-      recent_divs = dividends[dividends.index >= one_year_ago]
 
-      if not recent_divs.empty:
-        # 월별로 배당금 합산 (주당 배당금 * 보유수량)
-        monthly_divs = {i: 0.0 for i in range(1, 13)}
-        for date, val in recent_divs.items():
-          month = date.month
-          # 총 받은 배당금 = 주당 배당금 * 보유 수량
-          monthly_divs[month] += val * qty
+    if not dividends.empty:
+      # 타임존 정렬 (naive/aware 충돌 방지)
+      if dividends.index.tz is not None and now.tz is not None:
+        dividends.index = dividends.index.tz_convert("UTC")
+      elif dividends.index.tz is None and now.tz is not None:
+        dividends.index = dividends.index.tz_localize("UTC")
+
+      # 직전 1년(최근 12개월) 동안 지급된 내역을 기반으로 향후 지급 패턴(월) 예측
+      recent_one_year_divs = dividends[dividends.index >= (now - pd.DateOffset(years=1))]
+
+      if not recent_one_year_divs.empty:
+        # 최근 지급된 월(month)과 주당 평균 배당금 계산
+        monthly_avg_per_share = {i: 0.0 for i in range(1, 13)}
+        month_counts = {i: 0 for i in range(1, 13)}
+
+        for date, val in recent_one_year_divs.items():
+          m = date.month
+          monthly_avg_per_share[m] += val
+          month_counts[m] += 1
 
         div_row = {
             "종목명": row["Name"],
             "티커": ticker_str,
         }
         annual_total_usd = 0
+        has_future_dividend = False
+
         for m in range(1, 13):
-          amt_usd = monthly_divs[m]
-          annual_total_usd += amt_usd
-          if amt_usd > 0:
+          # 해당 월에 지급 이력이 있다면 향후 1년 내 해당 월에도 지급된다고 가정
+          if month_counts[m] > 0:
+            amt_usd = monthly_avg_per_share[m] * qty
+            annual_total_usd += amt_usd
+            has_future_dividend = True
             amt_krw = amt_usd * exchange_rate
-            div_row[f"{m}월"] = f"${amt_usd:,.2f}<br>({amt_krw:,.0f} 원)"
+            div_row[f"{m}월"] = (
+                f"(예상) $ {amt_usd:,.2f}<br>({amt_krw:,.0f} 원)"
+            )
           else:
             div_row[f"{m}월"] = "-"
 
-        annual_total_krw = annual_total_usd * exchange_rate
-        div_row["연간 총 배당금"] = (
-            f"${annual_total_usd:,.2f}<br>({annual_total_krw:,.0f} 원)"
-        )
-        dividend_data.append(div_row)
-      else:
-        dividend_data.append({
-            "종목명": row["Name"],
-            "티커": ticker_str,
-            "연간 총 배당금": "배당 이력 없음",
-        })
-    else:
-      dividend_data.append({
-          "종목명": row["Name"],
-          "티커": ticker_str,
-          "연간 총 배당금": "배당 없음",
-      })
+        if has_future_dividend:
+          annual_total_krw = annual_total_usd * exchange_rate
+          div_row["향후 1년 예상 총 배당금"] = (
+              f"(예상) $ {annual_total_usd:,.2f}<br>({annual_total_krw:,.0f}"
+              " 원)"
+          )
+          dividend_data.append(div_row)
   except:
-    dividend_data.append({
-        "종목명": row["Name"],
-        "티커": ticker_str,
-        "연간 총 배당금": "조회 실패",
-    })
+    continue
 
-df_div = pd.DataFrame(dividend_data)
+if len(dividend_data) > 0:
+  df_div = pd.DataFrame(dividend_data)
 
-# 1월부터 12월까지 컬럼 순서 맞추기 (없는 월은 컬럼 추가)
-month_cols = [f"{m}월" for m in range(1, 13)]
-base_cols = ["종목명", "티커"]
-all_cols = base_cols + month_cols + ["연간 총 배당금"]
+  # 1월부터 12월까지 컬럼 순서 맞추기
+  month_cols = [f"{m}월" for m in range(1, 13)]
+  base_cols = ["종목명", "티커"]
+  all_cols = base_cols + month_cols + ["향후 1년 예상 총 배당금"]
 
-for col in all_cols:
-  if col not in df_div.columns:
-    df_div[col] = "-"
+  for col in all_cols:
+    if col not in df_div.cols if hasattr(df_div, "cols") else col not in df_div.columns:
+      df_div[col] = "-"
 
-df_div = df_div[all_cols]
+  df_div = df_div[all_cols]
 
-# 배당금 테이블 출력 (HTML로 세로줄바꿈 적용)
-st.markdown(
-    df_div.to_html(escape=False, index=False, classes="styled-table"),
-    unsafe_allow_html=True,
-)
+  # 배당금 테이블 출력 (HTML로 세로줄바꿈 적용)
+  st.markdown(
+      df_div.to_html(escape=False, index=False, classes="styled-table"),
+      unsafe_allow_html=True,
+  )
+else:
+  st.info("현재 포트폴리오에 향후 배당이 예상되는 종목이 없습니다.")
 
 st.divider()
 
