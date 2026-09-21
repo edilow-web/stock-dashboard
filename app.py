@@ -101,7 +101,7 @@ col3.metric(
 
 st.divider()
 
-# 5. 종목별 상세 테이블 구성 (달러 아래에 원화 세로 병기)
+# 5. 종목별 상세 테이블 구성 (종목명, 티커, 보유수량, 매수가, 매수금액, 현재가, 총 평가금액, 수익률 순)
 st.subheader("📊 종목별 보유 현황")
 
 display_data = []
@@ -109,6 +109,10 @@ for idx, row in df.iterrows():
   buy_usd = row["Buy_Price"]
   buy_krw = buy_usd * exchange_rate
   buy_str = f"$ {buy_usd:,.2f}<br>({buy_krw:,.0f} 원)"
+
+  inv_usd = row["Investment"]
+  inv_krw = inv_usd * exchange_rate
+  inv_str = f"$ {inv_usd:,.2f}<br>({inv_krw:,.0f} 원)"
 
   cur_usd = row["Current_Price"]
   cur_krw = cur_usd * exchange_rate
@@ -123,9 +127,10 @@ for idx, row in df.iterrows():
   display_data.append({
       "종목명": row["Name"],
       "티커": row["Ticker"],
-      "매수가": buy_str,
-      "현재가": cur_str,
       "보유수량": row["Quantity"],
+      "매수가": buy_str,
+      "매수금액": inv_str,
+      "현재가": cur_str,
       "총 평가금액": eval_str,
       "수익률": ret_str,
   })
